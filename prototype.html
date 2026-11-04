@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prototipe UI - Tebak Gambar Multiplayer (10 Pemain)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-grad-1: #4f46e5;
+      --bg-grad-2: #7c3aed;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --surface-muted: #f1f5f9;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --success-bg: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-bg: #fffbeb;
+      --danger: #ef4444;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --shadow-card: 0 10px 25px -5px rgba(15, 23, 42, 0.25), 0 4px 0 #cbd5e1;
+      --radius-lg: 18px;
+      --radius-md: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at top left, #6366f1, #4338ca 55%, #312e81);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, .font-display {
+      font-family: 'Fredoka', sans-serif;
+      letter-spacing: 0.3px;
+    }
+
+    /* TOP PROTOTYPE SWITCHER BAR */
+    .proto-bar {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      border-bottom: 2px solid #334155;
+      z-index: 100;
+    }
+
+    .proto-bar-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .proto-steps {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .proto-btn {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .proto-btn:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    .proto-btn.active {
+      background: #38bdf8;
+      color: #0f172a;
+      border-color: #38bdf8;
+      font-weight: 700;
+    }
+
+    /* MAIN CONTAINER */
+    .app-shell {
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* TOP GAME HEADER */
+    .game-header {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow-card);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 12px;
+      box-shadow: 0 3px 0 #4338ca;
+    }
+
+    .round-pill {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .word-box {
+      display: flex;
+       flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .word-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.8px;
+    }
+
+    .word-display {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--text-main);
+      background: #eef2ff;
+      border: 2px dashed #818cf8;
+      padding: 4px 18px;
+      border-radius: 10px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .timer-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      color: #b45309;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .timer-badge.danger {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #b91c1c;
+      animation: pulse 0.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+
+    /* SHUFFLE BAG QUEUE VISUALIZER BAR */
+    .queue-bar {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 10px 16px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .queue-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #a5b4fc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .queue-chips {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .q-chip {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid transparent;
+    }
+
+    .q-chip.done {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+      text-decoration: line-through;
+      opacity: 0.75;
+    }
+
+    .q-chip.current {
+      background: #f59e0b;
+      color: #0f172a;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+      transform: scale(1.05);
+    }
+
+    .q-chip.waiting {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #e2e8f0;
+    }
+
+    .btn-shuffle-demo {
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-shuffle-demo:hover {
+      background: #6366f1;
+    }
+
+    /* 3-COLUMN IN-GAME LAYOUT */
+    .game-grid {
+      display: grid;
+      grid-template-columns: 270px 1fr 330px;
+      gap: 16px;
+      flex: 1;
+      min-height: 560px;
+    }
+
+    @media (max-width: 1100px) {
+      .game-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* PANEL COMMON */
+    .panel {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 12px 16px;
+      background: var(--surface-soft);
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* LEFT: 10 PLAYERS LEADERBOARD */
+    .player-list {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: var(--surface-soft);
+      border: 1.5px solid var(--border);
+      transition: all 0.2s ease;
+    }
+
+    .player-row.is-drawer {
+      background: #eef2ff;
+      border-color: #6366f1;
+    }
+
+    .player-row.has-guessed {
+      background: var(--success-bg);
+      border-color: var(--success);
+    }
+
+    .player-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .rank-num {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      width: 18px;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .player-meta {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .player-name {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .player-score {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .status-icon {
+      font-size: 16px;
+    }
+
+    /* CENTER: CANVAS STAGE + OVERLAYS + TOOLBAR */
+    .canvas-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: #f8fafc;
+    }
+
+    .canvas-stage {
+      position: relative;
+      flex: 1;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      min-height: 430px;
+    }
+
+    canvas#drawCanvas {
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      display: block;
+    }
+
+    canvas#drawCanvas.locked {
+      cursor: not-allowed;
+    }
+
+    /* TOOLBAR FOR DRAWER */
+    .drawer-toolbar {
+      padding: 12px 16px;
+      background: var(--surface-soft);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .color-palette {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid #cbd5e1;
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+
+    .color-swatch.active {
+      transform: scale(1.22);
+      border-color: #0f172a;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+
+    .tool-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-btn {
+      background: #fff;
+      border: 1.5px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 6px 11px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+
+    .tool-btn:hover {
+      background: var(--surface-muted);
+    }
+
+    .tool-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .size-dot {
+      border-radius: 50%;
+      background: currentColor;
+      display: inline-block;
+    }
+
+    /* OVERLAYS INSIDE CANVAS STAGE */
+    .stage-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.84);
+      backdrop-filter: blur(6px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+      color: #fff;
+      text-align: center;
+      z-index: 20;
+    }
+
+    .stage-overlay.show {
+      display: flex;
+    }
+
+    .word-choices {
+      display: flex;
+      gap: 14px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .word-choice-btn {
+      background: #ffffff;
+      color: var(--text-main);
+      border: 3px solid #6366f1;
+      border-radius: 16px;
+      padding: 16px 24px;
+      cursor: pointer;
+      min-width: 170px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 6px 0 #4338ca;
+    }
+
+    .word-choice-btn:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 0 #4338ca;
+    }
+
+    .word-choice-text {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .word-diff {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      text-transform: uppercase;
+    }
+
+    .diff-easy { background: #dcfce7; color: #15803d; }
+    .diff-med { background: #fef3c7; color: #b45309; }
+    .diff-hard { background: #fee2e2; color: #b91c1c; }
+
+    /* TURN REVEAL SCOREBOARD */
+    .reveal-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 18px;
+      width: 100%;
+      max-width: 440px;
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .reveal-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .score-gain {
+      color: #34d399;
+      font-weight: 700;
+    }
+
+    /* RIGHT: CHAT & GUESS INPUT */
+    .chat-messages {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 450px;
+    }
+
+    .chat-item {
+      font-size: 13px;
+      padding: 8px 11px;
+      border-radius: 10px;
+      background: var(--surface-soft);
+      line-height: 1.4;
+    }
+
+    .chat-item.system-correct {
+      background: var(--success-bg);
+      border: 1px solid #6ee7b7;
+      color: #065f46;
+      font-weight: 700;
+    }
+
+    .chat-item.system-close {
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+      color: #92400e;
+      font-weight: 700;
+    }
+
+    .chat-item.system-info {
+      background: #eef2ff;
+      color: #3730a3;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .chat-form {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      background: var(--surface-soft);
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 2px solid var(--border-strong);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .chat-input:focus {
+      border-color: var(--primary);
+    }
+
+    .chat-send {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* LOBBY & PODIUM VIEWS */
+    .Lobby-modal {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 20px;
+      width: 100%;
+      max-width: 900px;
+      text-align: left;
+    }
+
+    .lobby-box {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 13px;
+    }
+
+    .podium-wrap {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .podium-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 130px;
+    }
+
+    .podium-bar {
+      width: 100%;
+      border-radius: 14px 14px 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 14px;
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 700;
+    }
+
+    .podium-1 { height: 150px; background: linear-gradient(180deg, #fbbf24, #d97706); color: #0f172a; }
+    .podium-2 { height: 115px; background: linear-gradient(180deg, #cbd5e1, #64748b); color: #0f172a; }
+    .podium-3 { height: 90px; background: linear-gradient(180deg, #fdba74, #c2410c); color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- BAR PENGONTROL PROTOTIPE -->
+  <div class="proto-bar">
+    <div class="proto-bar-title">
+      <span>🎛️ Mode Prototipe UI Interaktif</span>
+    </div>
+    <div class="proto-steps">
+      <button class="proto-btn" onclick="setScreen('lobby')" id="btn-lobby">1. Lobby Room (10 Pemain)</button>
+      <button class="proto-btn" onclick="setScreen('choose')" id="btn-choose">2. Pilih 3 Kata (10 dtk)</button>
+      <button class="proto-btn active" onclick="setScreen('drawer')" id="btn-drawer">3. Layar Pelukis (Drawer)</button>
+      <button class="proto-btn" onclick="setScreen('guesser')" id="btn-guesser">4. Layar Penebak (Guesser)</button>
+      <button class="proto-btn" onclick="setScreen('reveal')" id="btn-reveal">5. Rekap Giliran</button>
+      <button class="proto-btn" onclick="setScreen('podium')" id="btn-podium">6. Podium Akhir</button>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <!-- HEADER PERMAINAN -->
+    <header class="game-header">
+      <div class="brand-info">
+        <div class="logo-badge">🎨 TebakGambar.io</div>
+        <div class="round-pill" id="roundIndicator">Ronde 1 / 3 • Giliran 4 / 10</div>
+      </div>
+
+      <div class="word-box">
+        <span class="word-label" id="wordRoleLabel">KATA YANG HARUS DIGAMBAR</span>
+        <div class="word-display" id="wordDisplay">KUCING TIDUR</div>
+      </div>
+
+      <div class="header-right">
+        <div class="timer-badge" id="timerBadge">
+          <span>⏱️</span>
+          <span id="timerValue">48s</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- VISUALISASI ANTREAN ACAK TANPA PENGULANGAN (SHUFFLE BAG) -->
+    <div class="queue-bar">
+      <div class="queue-title">
+        <span>🎲 Antrean Giliran Ronde 1 (Shuffle Bag - Tanpa Duplikasi):</span>
+      </div>
+      <div class="queue-chips" id="queueContainer"></div>
+      <button class="btn-shuffle-demo" onclick="advanceTurnDemo()">⏭️ Simulasi Giliran Berikutnya</button>
+    </div>
+
+    <!-- 3 PANEL UTAMA -->
+    <div class="game-grid">
+      <!-- PANEL KIRI: 10 PEMAIN -->
+      <aside class="panel">
+        <div class="panel-header">
+          <span>👥 Pemain di Room (10/10)</span>
+          <span style="font-size: 12px; color: var(--primary);">Room #TG88</span>
+        </div>
+        <div class="player-list" id="playerList"></div>
+      </aside>
+
+      <!-- PANEL TENGAH: KANVAS & OVERLAY STATE -->
+      <main class="panel canvas-panel">
+        <div class="canvas-stage">
+          <canvas id="drawCanvas" width="800" height="520"></canvas>
+
+          <!-- OVERLAY 1: LOBBY -->
+          <div class="stage-overlay" id="overlay-lobby">
+            <h2 style="font-size: 28px; margin-bottom: 6px;">🏠 Lobby Room #TG88</h2>
+            <p style="color: #cbd5e1; font-size: 14px; margin-bottom: 18px;">Menunggu Host memulai permainan (10/10 Pemain Siap)</p>
+            <div class="Lobby-modal">
+              <div class="lobby-box">
+                <h3 style="margin-bottom: 10px; color: #38bdf8;">⚙️ Pengaturan Room</h3>
+                <div class="setting-item"><span>Kapasitas Pemain</span><strong>10 Orang</strong></div>
+                <div class="setting-item"><span>Jumlah Ronde</span><strong>3 Ronde (30 Giliran)</strong></div>
+                <div class="setting-item"><span>Durasi Menggambar</span><strong>60 Detik</strong></div>
+                <div class="setting-item"><span>Pilihan Kata</span><strong>3 Kata (10 Detik)</strong></div>
+                <div class="setting-item"><span>Mode Giliran</span><strong>Random Shuffle Bag</strong></div>
+              </div>
+              <div class="lobby-box" style="display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                  <h3 style="margin-bottom: 8px; color: #fbbf24;">🔒 Cara Kerja Giliran Adil</h3>
+                  <p style="font-size: 13px; color: #e2e8f0; line-height: 1.55;">
+                    Saat permainan dimulai, sistem mengacak ke-10 pemain ke dalam antrean rahasia. Setiap pemain dijamin mendapat 1x giliran menggambar sebelum ronde selesai dan tidak akan terpilih dua kali di ronde yang sama.
+                  </p>
+                </div>
+                <button onclick="setScreen('choose')" style="margin-top: 16px; background: #10b981; color:#fff; border:none; padding: 14px; border-radius: 12px; font-weight:700; font-size:15px; cursor:pointer;">
+                  🚀 Mulai Permainan Sekarang
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- OVERLAY 2: PILIH 3 KATA -->
+          <div class="stage-overlay" id="overlay-choose">
+            <span style="background:#4f46e5; padding: 5px 14px; border-radius:99px; font-size:12px; font-weight:700; margin-bottom: 10px;">
+              GILIRAN KAMU MENGGAMBAR!
+            </span>
+            <h2 style="font-size: 28px;">Pilih 1 Kata dalam <span style="color:#fbbf24;">08 detik</span></h2>
+            <p style="color:#cbd5e1; font-size:14px; margin-top:4px;">Jika waktu habis, sistem otomatis memilih salah satu kata secara acak.</p>
+            <div class="word-choices">
+              <button class="word-choice-btn" onclick="pickWord('KUCING TIDUR')">
+                <span class="word-choice-text">KUCING TIDUR</span>
+                <span class="word-diff diff-easy">Mudah • 12 Huruf</span>
+              </button>
+              <button class="word-choice-btn" onclick="pickWord('ASTRONOT')">
+                <span class="word-choice-text">ASTRONOT</span>
+                <span class="word-diff diff-med">Sedang • 8 Huruf</span>
+              </button>
+              <button class="word-choice-btn" onclick="pickWord('MENARA EIFFEL')">
+                <span class="word-choice-text">MENARA EIFFEL</span>
+                <span class="word-diff diff-hard">Sulit • 12 Huruf</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- OVERLAY 5: REKAP GILIRAN -->
+          <div class="stage-overlay" id="overlay-reveal">
+            <span style="color: #94a3b8; font-size: 13px; font-weight:700;">WAKTU HABIS / SEMUA MENEBAK!</span>
+            <h2 style="font-size: 30px; margin-top: 4px;">Jawabannya: <span style="color:#34d399;">KUCING TIDUR</span></h2>
+            <div class="reveal-card">
+              <div class="reveal-row"><span>🥇 Siti (Menebak dalam 11 dtk)</span><span class="score-gain">+380 pts</span></div>
+              <div class="reveal-row"><span>🥈 Riko (Menebak dalam 19 dtk)</span><span class="score-gain">+310 pts</span></div>
+              <div class="reveal-row"><span>🥉 Budi (Menebak dalam 27 dtk)</span><span class="score-gain">+250 pts</span></div>
+              <div class="reveal-row"><span>🎨 Andi (Pelukis - 3 Penebak Benar)</span><span class="score-gain">+180 pts</span></div>
+              <div class="reveal-row"><span>💭 6 Pemain Lainnya</span><span style="color:#94a3b8;">+0 pts</span></div>
+            </div>
+            <button onclick="advanceTurnDemo(); setScreen('choose');" style="margin-top: 18px; background:#6366f1; color:#fff; border:none; padding: 11px 22px; border-radius: 10px; font-weight:700; cursor:pointer;">
+              Lanjut ke Pemain Random Berikutnya ➔
+            </button>
+          </div>
+
+          <!-- OVERLAY 6: PODIUM AKHIR -->
+          <div class="stage-overlay" id="overlay-podium">
+            <span style="color:#fbbf24; font-weight:700; font-size:13px;">🏆 PERMAINAN SELESAI (3 RONDE TUNTAS)</span>
+            <h2 style="font-size: 30px; margin-top: 4px;">Podium Juara Room #TG88</h2>
+            <div class="podium-wrap">
+              <div class="podium-col">
+                <div style="font-weight:700; margin-bottom:6px;">🥈 Andi</div>
+                <div class="podium-bar podium-2">
+                  <span style="font-size:24px;">#2</span>
+                  <span style="font-size:13px;">2,420 pts</span>
+                </div>
+              </div>
+              <div class="podium-col">
+                <div style="font-weight:700; margin-bottom:6px; color:#fbbf24;">👑 Budi</div>
+                <div class="podium-bar podium-1">
+                  <span style="font-size:28px;">#1</span>
+                  <span style="font-size:14px;">2,890 pts</span>
+                </div>
+              </div>
+              <div class="podium-col">
+                <div style="font-weight:700; margin-bottom:6px;">🥉 Siti</div>
+                <div class="podium-bar podium-3">
+                  <span style="font-size:22px;">#3</span>
+                  <span style="font-size:13px;">2,150 pts</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="setScreen('lobby')" style="margin-top: 22px; background:#10b981; color:#fff; border:none; padding: 12px 24px; border-radius:10px; font-weight:700; cursor:pointer;">
+              🔄 Main Lagi (Acak Ulang Antrean)
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOLBAR MENGGAMBAR (AKTIF UNTUK DRAWER) -->
+        <div class="drawer-toolbar" id="drawerToolbar">
+          <div class="color-palette" id="colorPalette"></div>
+          <div class="tool-group">
+            <button class="tool-btn active" id="toolBrush" onclick="selectTool('brush')">✏️ Kuas</button>
+            <button class="tool-btn" id="toolEraser" onclick="selectTool('eraser')">🧽 Hapus</button>
+            <button class="tool-btn" onclick="setBrushSize(4)" title="Kecil"><span class="size-dot" style="width:6px;height:6px;"></span></button>
+            <button class="tool-btn" onclick="setBrushSize(10)" title="Sedang"><span class="size-dot" style="width:11px;height:11px;"></span></button>
+            <button class="tool-btn" onclick="setBrushSize(20)" title="Besar"><span class="size-dot" style="width:16px;height:16px;"></span></button>
+            <button class="tool-btn" onclick="undoStroke()">↩️ Undo</button>
+            <button class="tool-btn" onclick="clearCanvas()">🗑️ Bersih</button>
+          </div>
+        </div>
+      </main>
+
+      <!-- PANEL KANAN: LIVE CHAT & INPUT TEBAKAN -->
+      <aside class="panel">
+        <div class="panel-header">
+          <span>💬 Live Tebakan & Chat</span>
+          <span style="font-size: 11px; color: var(--text-muted);">Anti-Spoil Aktif</span>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-item system-info">🎲 Giliran ke-4 dari 10: <strong>Andi</strong> terpilih menggambar!</div>
+          <div class="chat-item"><strong>Dedi:</strong> bantal guling?</div>
+          <div class="chat-item"><strong>Nina:</strong> boneka beruang</div>
+          <div class="chat-item system-correct">🎉 <strong>Siti</strong> berhasil menebak kata! (+380 poin)</div>
+          <div class="chat-item"><strong>Reza:</strong> anjing tidur?</div>
+          <div class="chat-item system-correct">🎉 <strong>Riko</strong> berhasil menebak kata! (+310 poin)</div>
+        </div>
+        <form class="chat-form" onsubmit="handleGuessSubmit(event)">
+          <input
+            type="text"
+            id="guessInput"
+            class="chat-input"
+            placeholder="Ketik 'kucing tidur' untuk tes..."
+            autocomplete="off"
+          />
+          <button type="submit" class="chat-send">Kirim</button>
+        </form>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // DATA 10 PEMAIN & ANTREAN SHUFFLE BAG
+    const players = [
+      { id: 1, name: 'Budi (Host)', score: 1240, color: '#6366f1', status: 'done' },
+      { id: 2, name: 'Siti', score: 1120, color: '#ec4899', status: 'done', guessed: true },
+      { id: 3, name: 'Riko', score: 980, color: '#14b8a6', status: 'done', guessed: true },
+      { id: 4, name: 'Andi (Kamu)', score: 910, color: '#f59e0b', status: 'current' },
+      { id: 5, name: 'Dedi', score: 760, color: '#8b5cf6', status: 'waiting' },
+      { id: 6, name: 'Nina', score: 690, color: '#10b981', status: 'waiting' },
+      { id: 7, name: 'Reza', score: 540, color: '#ef4444', status: 'waiting' },
+      { id: 8, name: 'Tono', score: 480, color: '#3b82f6', status: 'waiting' },
+      { id: 9, name: 'Maya', score: 390, color: '#f97316', status: 'waiting' },
+      { id: 10, name: 'Vino', score: 250, color: '#06b6d4', status: 'waiting' }
+    ];
+
+    // Urutan hasil Fisher-Yates Shuffle untuk 10 pemain di Ronde 1
+    let turnOrder = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let currentTurnIndex = 3; // Indeks ke-3 = Giliran ke-4 (Andi)
+    let activeWord = 'KUCING TIDUR';
+    let currentMode = 'drawer';
+
+    function renderQueueBar() {
+      const container = document.getElementById('queueContainer');
+      container.innerHTML = '';
+      turnOrder.forEach((pid, idx) => {
+        const p = players.find(item => item.id === pid);
+        const chip = document.createElement('div');
+        let stateClass = 'waiting';
+        let icon = '⏳';
+        if (idx < currentTurnIndex) { stateClass = 'done'; icon = '✓'; }
+        else if (idx === currentTurnIndex) { stateClass = 'current'; icon = '✏️'; }
+
+        chip.className = `q-chip ${stateClass}`;
+        chip.innerHTML = `<span>${icon}</span><span>${idx + 1}. ${p.name.replace(' (Host)', '').replace(' (Kamu)', '')}</span>`;
+        container.appendChild(chip);
+      });
+      document.getElementById('roundIndicator').textContent = `Ronde 1 / 3 • Giliran ${currentTurnIndex + 1} / 10`;
+    }
+
+    function renderPlayers() {
+      const list = document.getElementById('playerList');
+      list.innerHTML = '';
+      const activeDrawerId = turnOrder[currentTurnIndex];
+      const sorted = [...players].sort((a, b) => b.score - a.score);
+
+      sorted.forEach((p, idx) => {
+        const isDrawer = p.id === activeDrawerId;
+        const row = document.createElement('div');
+        row.className = `player-row ${isDrawer ? 'is-drawer' : ''} ${p.guessed && !isDrawer ? 'has-guessed' : ''}`;
+        row.innerHTML = `
+          <div class="player-left">
+            <span class="rank-num">#${idx + 1}</span>
+            <div class="avatar" style="background:${p.color}">${p.name.charAt(0)}</div>
+            <div class="player-meta">
+              <span class="player-name">${p.name}</span>
+              <span class="player-score">${p.score} poin</span>
+            </div>
+          </div>
+          <span class="status-icon">${isDrawer ? '✏️' : (p.guessed ? '✅' : '💭')}</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function advanceTurnDemo() {
+      currentTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+      if (currentTurnIndex === 0) {
+        addChatMessage('🔄 Semua 10 pemain sudah kebagian giliran! Mengacak antrean baru untuk Ronde berikutnya...', 'system-info');
+      } else {
+        const nextDrawer = players.find(p => p.id === turnOrder[currentTurnIndex]);
+        addChatMessage(`🎲 Sistem memilih acak dari sisa antrean: Giliran ${nextDrawer.name} menggambar!`, 'system-info');
+      }
+      renderQueueBar();
+      renderPlayers();
+    }
+
+    // CANVAS INTERAKTIF
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let brushColor = '#0f172a';
+    let brushSize = 6;
+    let currentTool = 'brush';
+    let history = [];
+
+    const paletteColors = [
+      '#0f172a', '#ef4444', '#f97316', '#f59e0b', '#10b981',
+      '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899',
+      '#78350f', '#94a3b8'
+    ];
+
+    function initPalette() {
+      const pal = document.getElementById('colorPalette');
+      paletteColors.forEach((c, i) => {
+        const sw = document.createElement('button');
+        sw.className = `color-swatch ${i === 0 ? 'active' : ''}`;
+        sw.style.background = c;
+        sw.onclick = () => {
+          document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('active'));
+          sw.classList.add('active');
+          brushColor = c;
+          selectTool('brush');
+        };
+        pal.appendChild(sw);
+      });
+    }
+
+    function saveHistory() {
+      history.push(canvas.toDataURL());
+      if (history.length > 15) history.shift();
+    }
+
+    function undoStroke() {
+      if (history.length === 0) return;
+      const img = new Image();
+      img.src = history.pop();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
+    }
+
+    function clearCanvas() {
+      saveHistory();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function selectTool(tool) {
+      currentTool = tool;
+      document.getElementById('toolBrush').classList.toggle('active', tool === 'brush');
+      document.getElementById('toolEraser').classList.toggle('active', tool === 'eraser');
+    }
+
+    function setBrushSize(sz) {
+      brushSize = sz;
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (currentMode !== 'drawer') return;
+      saveHistory();
+      drawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!drawing || currentMode !== 'drawer') return;
+      const pos = getPos(e);
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = currentTool === 'eraser' ? '#ffffff' : brushColor;
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    });
+
+    window.addEventListener('mouseup', () => { drawing = false; });
+
+    // GAMBAR CONTOH ILUSTRASI KUCING TIDUR DI KANVAS
+    function drawSampleCatIllustration() {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Bantal
+      ctx.fillStyle = '#e0e7ff';
+      ctx.strokeStyle = '#4f46e5';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.roundRect(220, 250, 360, 150, 30);
+      ctx.fill();
+      ctx.stroke();
+
+      // Badan Kucing Oranye
+      ctx.fillStyle = '#fb923c';
+      ctx.strokeStyle = '#9a3412';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.ellipse(410, 310, 115, 65, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Kepala Kucing
+      ctx.beginPath();
+      ctx.arc(310, 295, 52, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Telinga
+      ctx.beginPath();
+      ctx.moveTo(270, 255);
+      ctx.lineTo(280, 215);
+      ctx.lineTo(305, 245);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(320, 245);
+      ctx.lineTo(345, 215);
+      ctx.lineTo(352, 258);
+      ctx.fill();
+      ctx.stroke();
+
+      // Mata Tertutup (Tidur)
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(292, 295, 10, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(328, 295, 10, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+
+      // Simbol Zzz
+      ctx.fillStyle = '#4f46e5';
+      ctx.font = 'bold 28px Fredoka, sans-serif';
+      ctx.fillText('Zzz...', 375, 210);
+    }
+
+    // SISTEM TEBAKAN & DETEKSI HAMPIR BENAR (LEVENSHTEIN SEDERHANA)
+    function isCloseGuess(guess, answer) {
+      if (Math.abs(guess.length - answer.length) > 2) return false;
+      let mismatches = 0;
+      const len = Math.max(guess.length, answer.length);
+      for (let i = 0; i < len; i++) {
+        if (guess[i] !== answer[i]) mismatches++;
+      }
+      return mismatches > 0 && mismatches <= 2;
+    }
+
+    function addChatMessage(html, type = '') {
+      const box = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = `chat-item ${type}`;
+      div.innerHTML = html;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function handleGuessSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('guessInput');
+      const raw = input.value.trim();
+      if (!raw) return;
+      input.value = '';
+
+      const clean = raw.toUpperCase();
+      if (clean === activeWord) {
+        addChatMessage(`🎉 <strong>Kamu</strong> berhasil menebak jawaban dengan benar! (+350 poin)`, 'system-correct');
+        players[3].score += 350;
+        players[3].guessed = true;
+        renderPlayers();
+      } else if (isCloseGuess(clean, activeWord)) {
+        addChatMessage(`🤏 <strong>Hampir benar!</strong> Tebakanmu "${raw}" sangat mendekati!`, 'system-close');
+      } else {
+        addChatMessage(`<strong>Kamu:</strong> ${raw}`);
+      }
+    }
+
+    function pickWord(word) {
+      activeWord = word;
+      setScreen('drawer');
+    }
+
+    // SWITCH ANTAR LAYAR PROTOTIPE
+    function setScreen(screen) {
+      document.querySelectorAll('.proto-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`btn-${screen}`).classList.add('active');
+
+      ['lobby', 'choose', 'reveal', 'podium'].forEach(id => {
+        document.getElementById(`overlay-${id}`).classList.remove('show');
+      });
+
+      const wordLabel = document.getElementById('wordRoleLabel');
+      const wordDisp = document.getElementById('wordDisplay');
+      const toolbar = document.getElementById('drawerToolbar');
+
+      if (screen === 'drawer') {
+        currentMode = 'drawer';
+        canvas.classList.remove('locked');
+        toolbar.style.display = 'flex';
+        wordLabel.textContent = 'KATA YANG HARUS KAMU GAMBAR (DRAWER)';
+        wordDisp.textContent = activeWord;
+      } else if (screen === 'guesser') {
+        currentMode = 'guesser';
+        canvas.classList.add('locked');
+        toolbar.style.display = 'none';
+        wordLabel.textContent = 'TEBAK GAMBAR INI (12 HURUF)';
+        wordDisp.textContent = 'K _ _ I N G   T _ _ U _';
+        drawSampleCatIllustration();
+      } else {
+        currentMode = screen;
+        document.getElementById(`overlay-${screen}`).classList.add('show');
+      }
+    }
+
+    // INIT
+    initPalette();
+    renderQueueBar();
+    renderPlayers();
+    drawSampleCatIllustration();
+  </script>
+</body>
+</html>

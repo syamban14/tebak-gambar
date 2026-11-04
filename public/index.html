@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TebakGambar.io — Game Tebak Gambar Multiplayer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- LAYAR 1: LANDING / MASUK ATAU BUAT ROOM -->
+  <section id="landingScreen" class="landing-screen">
+    <div class="landing-card">
+      <div class="landing-header">
+        <div class="logo-hero">🎨 TebakGambar.io</div>
+        <p class="landing-sub">Game Tebak Gambar Multiplayer Real-Time dengan Sistem Giliran Acak Adil (Shuffle Bag)</p>
+      </div>
+
+      <div class="landing-grid">
+        <!-- KOLOM KIRI: PROFIL & GABUNG KODE -->
+        <div class="landing-box">
+          <h3>👤 Profil Pemain</h3>
+          <label class="field-label" for="playerNameInput">Nama Panggilan</label>
+          <input type="text" id="playerNameInput" class="text-input" placeholder="Masukkan namamu..." maxlength="18" />
+
+          <label class="field-label" style="margin-top: 12px;">Pilih Warna Avatar</label>
+          <div class="avatar-picker" id="avatarPicker"></div>
+
+          <hr class="divider" />
+
+          <h3>🔑 Gabung via Kode Room</h3>
+          <div class="join-code-row">
+            <input type="text" id="roomCodeInput" class="text-input code-upper" placeholder="KODE (Misal: TG88A)" maxlength="5" />
+            <button id="btnJoinCode" class="btn-primary">Gabung</button>
+          </div>
+          <p id="landingError" class="error-msg"></p>
+        </div>
+
+        <!-- KOLOM KANAN: BUAT ROOM BARU & ROOM PUBLIK -->
+        <div class="landing-box">
+          <h3>🏠 Buat Room Baru</h3>
+          <div class="form-row">
+            <span>Kapasitas Pemain</span>
+            <select id="setMaxPlayers" class="select-input">
+              <option value="6">6 Pemain</option>
+              <option value="8">8 Pemain</option>
+              <option value="10" selected>10 Pemain (Standar)</option>
+              <option value="12">12 Pemain</option>
+              <option value="16">16 Pemain</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <span>Jumlah Ronde</span>
+            <select id="setMaxRounds" class="select-input">
+              <option value="2">2 Ronde</option>
+              <option value="3" selected>3 Ronde</option>
+              <option value="5">5 Ronde</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <span>Waktu Menggambar</span>
+            <select id="setDrawTime" class="select-input">
+              <option value="45">45 Detik (Cepat)</option>
+              <option value="60" selected>60 Detik (Normal)</option>
+              <option value="80">80 Detik (Santai)</option>
+              <option value="100">100 Detik</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <span>Tampilkan di Daftar Publik</span>
+            <input type="checkbox" id="setIsPublic" checked style="width:18px; height:18px; accent-color:#6366f1;" />
+          </div>
+
+          <button id="btnCreateRoom" class="btn-success full-width" style="margin-top: 12px;">
+            ➕ Buat Room & Undang Teman
+          </button>
+
+          <hr class="divider" />
+
+          <div class="public-rooms-head">
+            <h3>🌐 Room Publik Aktif</h3>
+          </div>
+          <div id="publicRoomsList" class="public-rooms-list">
+            <div class="empty-rooms">Belum ada room publik aktif. Buat room pertama!</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LAYAR 2: ARENA PERMAINAN (ROOM) -->
+  <div id="gameApp" class="app-shell hidden">
+    <!-- HEADER PERMAINAN -->
+    <header class="game-header">
+      <div class="brand-info">
+        <div class="logo-badge">🎨 TebakGambar.io</div>
+        <div class="round-pill" id="roundIndicator">Lobby Room</div>
+      </div>
+
+      <div class="word-box">
+        <span class="word-label" id="wordRoleLabel">MENUNGGU PERMAINAN</span>
+        <div class="word-display" id="wordDisplay">_ _ _ _ _</div>
+      </div>
+
+      <div class="header-right">
+        <button id="btnInviteLink" class="btn-ghost" title="Salin Link Undangan Room">
+          📋 Undang (<span id="headerRoomCode">-----</span>)
+        </button>
+        <button id="btnSoundToggle" class="btn-ghost" title="Matikan/Nyalakan Suara">
+          🔊
+        </button>
+        <div class="timer-badge" id="timerBadge">
+          <span>⏱️</span>
+          <span id="timerValue">--</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- VISUALISASI ANTREAN ACAK TANPA PENGULANGAN (SHUFFLE BAG) -->
+    <div class="queue-bar">
+      <div class="queue-title">
+        <span>🎲 Antrean Giliran Ronde (Shuffle Bag — Tanpa Pengulangan):</span>
+      </div>
+      <div class="queue-chips" id="queueContainer"></div>
+    </div>
+
+    <!-- 3 PANEL UTAMA -->
+    <div class="game-grid">
+      <!-- PANEL KIRI: LEADERBOARD PEMAIN -->
+      <aside class="panel">
+        <div class="panel-header">
+          <span id="playerCountHeader">👥 Pemain (1/10)</span>
+          <span class="room-tag" id="sidebarRoomCode">#-----</span>
+        </div>
+        <div class="player-list" id="playerList"></div>
+      </aside>
+
+      <!-- PANEL TENGAH: KANVAS & OVERLAY STATE -->
+      <main class="panel canvas-panel">
+        <div class="canvas-stage">
+          <canvas id="drawCanvas" width="800" height="520"></canvas>
+
+          <!-- OVERLAY 1: LOBBY ROOM -->
+          <div class="stage-overlay show" id="overlay-lobby">
+            <h2 style="font-size: 28px; margin-bottom: 6px;">🏠 Lobby Room <span id="lobbyCodeTitle">#-----</span></h2>
+            <p id="lobbySubText" style="color: #cbd5e1; font-size: 14px; margin-bottom: 18px;">
+              Bagikan kode atau link room ke teman-temanmu untuk mulai bermain!
+            </p>
+            <div class="lobby-modal">
+              <div class="lobby-box">
+                <h3 style="margin-bottom: 10px; color: #38bdf8;">⚙️ Pengaturan Room</h3>
+                <div class="setting-item"><span>Kapasitas Pemain</span><strong id="lblMaxPlayers">10 Orang</strong></div>
+                <div class="setting-item"><span>Jumlah Ronde</span><strong id="lblMaxRounds">3 Ronde</strong></div>
+                <div class="setting-item"><span>Durasi Menggambar</span><strong id="lblDrawTime">60 Detik</strong></div>
+                <div class="setting-item"><span>Pilihan Kata</span><strong>3 Kata Acak (10 Detik)</strong></div>
+                <div class="setting-item"><span>Mode Giliran</span><strong>Random Shuffle Bag</strong></div>
+              </div>
+              <div class="lobby-box" style="display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                  <h3 style="margin-bottom: 8px; color: #fbbf24;">🔒 Jaminan Giliran Adil</h3>
+                  <p style="font-size: 13px; color: #e2e8f0; line-height: 1.55;">
+                    Saat ronde dimulai, sistem mengacak semua pemain ke dalam antrean rahasia (<em>Shuffle Bag</em>). Semua pemain dijamin kebagian menggambar 1 kali sebelum diacak ulang pada ronde berikutnya.
+                  </p>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top: 16px;">
+                  <button id="btnCopyInviteLobby" class="btn-primary full-width">
+                    🔗 Salin Link Undangan Room
+                  </button>
+                  <button id="btnStartGame" class="btn-success full-width">
+                    🚀 Mulai Permainan Sekarang
+                  </button>
+                  <p id="waitingHostNotice" class="hidden" style="text-align:center; font-size:13px; color:#fbbf24; font-weight:700;">
+                    ⏳ Menunggu Host memulai permainan...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- OVERLAY 2A: DRAWER MEMILIH 1 DARI 3 KATA -->
+          <div class="stage-overlay" id="overlay-choose-drawer">
+            <span class="pill-highlight">GILIRAN KAMU MENGGAMBAR!</span>
+            <h2 style="font-size: 28px;">Pilih 1 Kata untuk Digambar</h2>
+            <p style="color:#cbd5e1; font-size:14px; margin-top:4px;">
+              Jika tidak memilih dalam 10 detik, sistem akan memilihkan otomatis.
+            </p>
+            <div class="word-choices" id="wordChoicesContainer"></div>
+          </div>
+
+          <!-- OVERLAY 2B: GUESSER MENUNGGU DRAWER MEMILIH KATA -->
+          <div class="stage-overlay" id="overlay-choose-guesser">
+            <span class="pill-highlight">BERSIAPLAH MENEBAK!</span>
+            <h2 style="font-size: 28px; margin-top:8px;">
+              🎨 <span id="choosingDrawerName">Pemain</span> sedang memilih kata...
+            </h2>
+            <p style="color:#cbd5e1; font-size:14px; margin-top:8px;">
+              Perhatikan kanvas dan ketik tebakanmu secepat mungkin di kolom chat kanan!
+            </p>
+          </div>
+
+          <!-- OVERLAY 3: REKAP GILIRAN (TURN REVEAL) -->
+          <div class="stage-overlay" id="overlay-reveal">
+            <span style="color: #94a3b8; font-size: 13px; font-weight:700;">GILIRAN SELESAI!</span>
+            <h2 style="font-size: 30px; margin-top: 4px;">
+              Jawabannya: <span id="revealAnswerWord" style="color:#34d399;">-------</span>
+            </h2>
+            <div class="reveal-card" id="revealScoresList"></div>
+            <p style="margin-top: 14px; font-size: 13px; color: #cbd5e1;">
+              Bersiap menuju pemain acak berikutnya di antrean...
+            </p>
+          </div>
+
+          <!-- OVERLAY 4: PODIUM AKHIR -->
+          <div class="stage-overlay" id="overlay-podium">
+            <span style="color:#fbbf24; font-weight:700; font-size:13px;">🏆 PERMAINAN SELESAI!</span>
+            <h2 style="font-size: 30px; margin-top: 4px;">Podium Juara Room</h2>
+            <div class="podium-wrap" id="podiumContainer"></div>
+            <button id="btnPlayAgain" class="btn-success" style="margin-top: 22px;">
+              🔄 Kembali ke Lobby & Main Lagi
+            </button>
+          </div>
+        </div>
+
+        <!-- TOOLBAR MENGGAMBAR (HANYA MUNCUL BAGI DRAWER AKTIF) -->
+        <div class="drawer-toolbar" id="drawerToolbar">
+          <div class="color-palette" id="colorPalette"></div>
+          <div class="tool-group">
+            <button class="tool-btn active" id="toolBrush" data-tool="brush">✏️ Kuas</button>
+            <button class="tool-btn" id="toolBucket" data-tool="bucket">🪣 Isi</button>
+            <button class="tool-btn" id="toolEraser" data-tool="eraser">🧽 Hapus</button>
+            <button class="tool-btn size-btn active" data-size="5" title="Kecil"><span class="size-dot" style="width:6px;height:6px;"></span></button>
+            <button class="tool-btn size-btn" data-size="11" title="Sedang"><span class="size-dot" style="width:11px;height:11px;"></span></button>
+            <button class="tool-btn size-btn" data-size="22" title="Besar"><span class="size-dot" style="width:16px;height:16px;"></span></button>
+            <button class="tool-btn" id="btnUndo">↩️ Undo</button>
+            <button class="tool-btn" id="btnClear">🗑️ Bersih</button>
+          </div>
+        </div>
+      </main>
+
+      <!-- PANEL KANAN: LIVE CHAT & INPUT TEBAKAN -->
+      <aside class="panel">
+        <div class="panel-header">
+          <span>💬 Live Tebakan & Chat</span>
+          <span style="font-size: 11px; color: var(--text-muted);">Anti-Spoil Aktif</span>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <form class="chat-form" id="chatForm">
+          <input
+            type="text"
+            id="guessInput"
+            class="chat-input"
+            placeholder="Ketik tebakanmu di sini..."
+            autocomplete="off"
+            maxlength="80"
+          />
+          <button type="submit" class="chat-send">Kirim</button>
+        </form>
+      </aside>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
