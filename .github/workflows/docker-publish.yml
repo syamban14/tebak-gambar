@@ -57,13 +57,28 @@ jobs:
     name: Deploy to VPS
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch') && secrets.VPS_HOST != ''
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
 
     steps:
+      - name: Check if VPS secrets are configured
+        id: check_secrets
+        run: |
+          if [ -z "$VPS_HOST" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Secret VPS_HOST belum diatur di GitHub Secrets. Melewati tahap deploy ke VPS."
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+            echo "✅ Secret VPS_HOST ditemukan. Melanjutkan deploy ke VPS..."
+          fi
+
       - name: Checkout repository
+        if: steps.check_secrets.outputs.configured == 'true'
         uses: actions/checkout@v4
 
       - name: Transfer docker-compose.yml to VPS
+        if: steps.check_secrets.outputs.configured == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -74,6 +89,7 @@ jobs:
           target: "~/tebak-gambar"
 
       - name: Pull new GHCR image & run container on VPS
+        if: steps.check_secrets.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
