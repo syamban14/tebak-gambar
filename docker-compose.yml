@@ -1,8 +1,6 @@
 services:
   tebak-gambar:
-    # Ganti USERNAME_GITHUB/NAMA_REPO sesuai repository GitHub Anda saat di VPS
     image: ghcr.io/syamban14/tebak-gambar:latest
-    build: .
     container_name: tebak-gambar-app
     restart: unless-stopped
     ports:
