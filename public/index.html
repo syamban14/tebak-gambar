@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>TebakGambar.io — Game Tebak Gambar Multiplayer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -106,12 +106,14 @@
       </div>
 
       <div class="header-right">
-        <button id="btnInviteLink" class="btn-ghost" title="Salin Link Undangan Room">
-          📋 Undang (<span id="headerRoomCode">-----</span>)
+        <span id="connBadge" class="conn-badge hidden" title="Status koneksi">📴 Terputus</span>
+        <button id="btnPlayersToggle" class="btn-ghost mobile-only" title="Daftar pemain">👥 <span id="playersToggleCount">1</span></button>
+        <button id="btnInviteLink" class="btn-ghost" title="Bagikan / salin link undangan">
+          📋 <span class="hide-mobile">Undang </span>(<span id="headerRoomCode">-----</span>)
         </button>
-        <button id="btnSoundToggle" class="btn-ghost" title="Matikan/Nyalakan Suara">
-          🔊
-        </button>
+        <button id="btnHelp" class="btn-ghost" title="Cara bermain">❓</button>
+        <button id="btnSoundToggle" class="btn-ghost" title="Matikan/Nyalakan Suara">🔊</button>
+        <button id="btnLeave" class="btn-ghost btn-leave js-leave" title="Keluar dari room">🚪 <span class="hide-mobile">Keluar</span></button>
         <div class="timer-badge" id="timerBadge">
           <span>⏱️</span>
           <span id="timerValue">--</span>
@@ -130,13 +132,15 @@
     <!-- 3 PANEL UTAMA -->
     <div class="game-grid">
       <!-- PANEL KIRI: LEADERBOARD PEMAIN -->
-      <aside class="panel">
+      <aside class="panel players-panel" id="playersPanel">
         <div class="panel-header">
           <span id="playerCountHeader">👥 Pemain (1/10)</span>
           <span class="room-tag" id="sidebarRoomCode">#-----</span>
+          <button class="drawer-close mobile-only" id="btnPlayersClose" aria-label="Tutup">✕</button>
         </div>
         <div class="player-list" id="playerList"></div>
       </aside>
+      <div class="drawer-backdrop" id="drawerBackdrop"></div>
 
       <!-- PANEL TENGAH: KANVAS & OVERLAY STATE -->
       <main class="panel canvas-panel">
@@ -166,6 +170,8 @@
                   </p>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px; margin-top: 16px;">
+                  <button id="btnHelpLobby" class="btn-ghost full-width">❓ Cara Bermain</button>
+                  <button class="btn-ghost full-width btn-leave js-leave">🚪 Keluar dari Room</button>
                   <button id="btnCopyInviteLobby" class="btn-primary full-width">
                     🔗 Salin Link Undangan Room
                   </button>
@@ -221,6 +227,7 @@
             <button id="btnPlayAgain" class="btn-success" style="margin-top: 22px;">
               🔄 Kembali ke Lobby & Main Lagi
             </button>
+            <button class="btn-ghost btn-leave js-leave" style="margin-top:10px;">🚪 Keluar dari Room</button>
           </div>
         </div>
 
@@ -228,20 +235,20 @@
         <div class="drawer-toolbar" id="drawerToolbar">
           <div class="color-palette" id="colorPalette"></div>
           <div class="tool-group">
-            <button class="tool-btn active" id="toolBrush" data-tool="brush">✏️ Kuas</button>
-            <button class="tool-btn" id="toolBucket" data-tool="bucket">🪣 Isi</button>
-            <button class="tool-btn" id="toolEraser" data-tool="eraser">🧽 Hapus</button>
+            <button class="tool-btn active" id="toolBrush" data-tool="brush">✏️<span class="tool-label"> Kuas</span></button>
+            <button class="tool-btn" id="toolBucket" data-tool="bucket">🪣<span class="tool-label"> Isi</span></button>
+            <button class="tool-btn" id="toolEraser" data-tool="eraser">🧽<span class="tool-label"> Hapus</span></button>
             <button class="tool-btn size-btn active" data-size="5" title="Kecil"><span class="size-dot" style="width:6px;height:6px;"></span></button>
             <button class="tool-btn size-btn" data-size="11" title="Sedang"><span class="size-dot" style="width:11px;height:11px;"></span></button>
             <button class="tool-btn size-btn" data-size="22" title="Besar"><span class="size-dot" style="width:16px;height:16px;"></span></button>
-            <button class="tool-btn" id="btnUndo">↩️ Undo</button>
-            <button class="tool-btn" id="btnClear">🗑️ Bersih</button>
+            <button class="tool-btn" id="btnUndo">↩️<span class="tool-label"> Undo</span></button>
+            <button class="tool-btn" id="btnClear">🗑️<span class="tool-label"> Bersih</span></button>
           </div>
         </div>
       </main>
 
       <!-- PANEL KANAN: LIVE CHAT & INPUT TEBAKAN -->
-      <aside class="panel">
+      <aside class="panel chat-panel">
         <div class="panel-header">
           <span>💬 Live Tebakan & Chat</span>
           <span style="font-size: 11px; color: var(--text-muted);">Anti-Spoil Aktif</span>
@@ -259,6 +266,24 @@
           <button type="submit" class="chat-send">Kirim</button>
         </form>
       </aside>
+    </div>
+  </div>
+
+
+  <div id="toast" class="toast hidden"></div>
+
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>❓ Cara Bermain</h2>
+      <ol class="help-list">
+        <li>🎲 Setiap ronde, semua pemain <strong>mendapat giliran menggambar 1x</strong> dalam urutan acak.</li>
+        <li>✏️ Pelukis memilih <strong>1 dari 3 kata</strong> (10 detik), lalu menggambarnya tanpa menulis huruf.</li>
+        <li>💬 Penebak mengetik tebakan di kolom chat. Makin cepat benar, makin besar poin.</li>
+        <li>🤏 Jika muncul "Hampir benar!", tebakanmu tinggal selisih sedikit huruf.</li>
+        <li>💡 Huruf petunjuk terbuka otomatis seiring waktu berjalan.</li>
+        <li>🏆 Pemain dengan poin tertinggi di akhir ronde jadi juara.</li>
+      </ol>
+      <button id="btnHelpClose" class="btn-primary full-width">Mengerti, ayo main!</button>
     </div>
   </div>
 

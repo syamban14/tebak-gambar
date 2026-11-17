@@ -52,6 +52,34 @@ const avatarColors = [
 let selectedAvatarColor = avatarColors[Math.floor(Math.random() * avatarColors.length)];
 let currentRoomState = null;
 let mySecretWord = '';
+let myPlayerId = null;
+let inGame = false;
+
+function saveSession(code, playerId) {
+  myPlayerId = playerId;
+  localStorage.setItem('tg_session', JSON.stringify({ code, playerId }));
+}
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem('tg_session') || 'null'); } catch (_) { return null; }
+}
+function clearSession() {
+  localStorage.removeItem('tg_session');
+  myPlayerId = null;
+}
+
+// Toast ringan (pengganti pesan sementara)
+let toastTimer = null;
+function showToast(text, ms = 2200) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), ms);
+}
+
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (_) {}
+}
 
 // ELEMEN DOM
 const landingScreen = document.getElementById('landingScreen');
@@ -106,6 +134,7 @@ document.getElementById('btnCreateRoom').addEventListener('click', () => {
 
   socket.emit('room:create', { ...profile, settings }, (res) => {
     if (res?.ok) {
+      saveSession(res.code, res.playerId);
       enterGameScreen(res.code);
     } else {
       landingError.textContent = res?.error || 'Gagal membuat room.';
@@ -124,6 +153,7 @@ function joinRoomByCode(codeToJoin) {
   const profile = getPlayerProfile();
   socket.emit('room:join', { roomCode: code, ...profile }, (res) => {
     if (res?.ok) {
+      saveSession(res.code, res.playerId);
       enterGameScreen(res.code);
     } else {
       landingError.textContent = res?.error || 'Gagal bergabung ke room.';
@@ -137,6 +167,7 @@ roomCodeInput.addEventListener('keydown', (e) => {
 });
 
 function enterGameScreen(code) {
+  inGame = true;
   landingScreen.classList.add('hidden');
   gameApp.classList.remove('hidden');
   window.history.replaceState({}, '', `?room=${code}`);
@@ -232,7 +263,7 @@ function isMyTurnToDraw() {
   return (
     currentRoomState &&
     currentRoomState.state === 'drawing' &&
-    currentRoomState.currentDrawerId === socket.id
+    currentRoomState.currentDrawerId === myPlayerId
   );
 }
 
@@ -426,6 +457,14 @@ socket.on('room:state', (state) => {
   if (prevState !== state.state && (state.state === 'choosing_word' || state.state === 'drawing')) {
     playSoundEffect('turn');
   }
+  if (prevState !== state.state && state.state === 'choosing_word' && state.currentDrawerId === myPlayerId) {
+    vibrate([200, 80, 200]);
+    showToast('✏️ Giliranmu menggambar!');
+  }
+  if (prevState === undefined && state.state === 'lobby' && !localStorage.getItem('tg_seen_help')) {
+    document.getElementById('helpModal').classList.remove('hidden');
+  }
+  document.getElementById('playersToggleCount').textContent = state.players.length;
 
   // Update Kode Room
   document.getElementById('headerRoomCode').textContent = state.code;
@@ -446,8 +485,8 @@ socket.on('room:state', (state) => {
   document.getElementById('lblMaxRounds').textContent = `${state.settings.maxRounds} Ronde`;
   document.getElementById('lblDrawTime').textContent = `${state.settings.drawTime} Detik`;
 
-  const amIHost = state.hostId === socket.id;
-  const amIDrawer = state.currentDrawerId === socket.id;
+  const amIHost = state.hostId === myPlayerId;
+  const amIDrawer = state.currentDrawerId === myPlayerId;
 
   document.getElementById('btnStartGame').classList.toggle('hidden', !amIHost);
   document.getElementById('waitingHostNotice').classList.toggle('hidden', amIHost);
@@ -491,7 +530,9 @@ socket.on('room:state', (state) => {
 
   // Atur Input Chat
   const guessInput = document.getElementById('guessInput');
-  const me = state.players.find(p => p.id === socket.id);
+  const me = state.players.find(p => p.id === myPlayerId);
+  const lockInput = state.state === 'drawing' && (amIDrawer || me?.guessed);
+  guessInput.disabled = lockInput;
   if (state.state === 'drawing' && amIDrawer) {
     guessInput.placeholder = 'Kamu sedang menggambar...';
   } else if (state.state === 'drawing' && me?.guessed) {
@@ -531,7 +572,7 @@ socket.on('room:state', (state) => {
 // Terima Kata Rahasia Khusus untuk Drawer
 socket.on('drawer:secret_word', (secretWord) => {
   mySecretWord = secretWord;
-  if (currentRoomState?.state === 'drawing' && currentRoomState?.currentDrawerId === socket.id) {
+  if (currentRoomState?.state === 'drawing' && currentRoomState?.currentDrawerId === myPlayerId) {
     document.getElementById('wordRoleLabel').textContent = 'KATA YANG HARUS KAMU GAMBAR';
     document.getElementById('wordDisplay').textContent = secretWord;
   }
@@ -595,10 +636,10 @@ function renderPlayersList(players = [], maxPlayers = 10) {
   const sorted = [...players].sort((a, b) => b.score - a.score);
   sorted.forEach((p, idx) => {
     const row = document.createElement('div');
-    row.className = `player-row ${p.isDrawer ? 'is-drawer' : ''} ${p.guessed && !p.isDrawer ? 'has-guessed' : ''}`;
-    const isMe = p.id === socket.id ? ' (Kamu)' : '';
+    row.className = `player-row ${p.isDrawer ? 'is-drawer' : ''} ${p.guessed && !p.isDrawer ? 'has-guessed' : ''} ${p.connected === false ? 'is-offline' : ''}`;
+    const isMe = p.id === myPlayerId ? ' (Kamu)' : '';
     const hostCrown = p.isHost ? '👑 ' : '';
-    const statusIcon = p.isDrawer ? '✏️' : (p.guessed ? '✅' : '💭');
+    const statusIcon = p.connected === false ? '📴' : (p.isDrawer ? '✏️' : (p.guessed ? '✅' : '💭'));
 
     row.innerHTML = `
       <div class="player-left">
@@ -696,14 +737,29 @@ document.getElementById('btnPlayAgain').addEventListener('click', () => {
   socket.emit('game:restart');
 });
 
-function copyRoomInviteLink() {
+async function copyRoomInviteLink() {
   const url = window.location.href;
-  navigator.clipboard.writeText(url).then(() => {
-    addChatMessage({
-      type: 'system-info',
-      text: `📋 Link undangan room berhasil disalin: ${url}`
-    });
-  });
+  if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+    try {
+      await navigator.share({ title: 'TebakGambar.io', text: `Ayo main tebak gambar! Kode room: ${currentRoomState?.code || ''}`, url });
+      return;
+    } catch (_) { /* dibatalkan -> lanjut salin */ }
+  }
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(url);
+    ok = true;
+  } catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+  showToast(ok ? '📋 Link undangan disalin!' : `Salin manual: ${url}`, ok ? 2200 : 6000);
 }
 
 document.getElementById('btnInviteLink').addEventListener('click', copyRoomInviteLink);
@@ -726,6 +782,7 @@ document.getElementById('chatForm').addEventListener('submit', (e) => {
 socket.on('chat:message', (msg) => {
   addChatMessage(msg);
   if (msg.sound) playSoundEffect(msg.sound);
+  if (msg.sound === 'close') vibrate(60);
 });
 
 function addChatMessage(msg) {
@@ -749,3 +806,63 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+
+// ==========================================
+// KONEKSI, REJOIN OTOMATIS, KELUAR ROOM, BANTUAN
+// ==========================================
+const connBadge = document.getElementById('connBadge');
+
+socket.on('connect', () => {
+  connBadge.classList.add('hidden');
+  const session = loadSession();
+  if (!session) return;
+  socket.emit('room:rejoin', { roomCode: session.code, playerId: session.playerId }, (res) => {
+    if (res?.ok) {
+      myPlayerId = res.playerId;
+      if (!inGame) enterGameScreen(res.code);
+      else showToast('🔌 Tersambung kembali');
+    } else {
+      clearSession();
+      if (inGame) {
+        showToast('Sesi room sudah berakhir');
+        setTimeout(() => { window.location.href = '/'; }, 1200);
+      }
+    }
+  });
+});
+
+socket.on('disconnect', () => {
+  connBadge.classList.remove('hidden');
+});
+
+function leaveRoom() {
+  if (!confirm('Keluar dari room? Skormu di room ini akan hilang.')) return;
+  socket.emit('room:leave');
+  clearSession();
+  window.location.href = '/';
+}
+document.querySelectorAll('.js-leave').forEach(btn => btn.addEventListener('click', leaveRoom));
+
+// Daftar pemain (drawer di mobile)
+const playersPanel = document.getElementById('playersPanel');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+function setPlayersDrawer(open) {
+  playersPanel.classList.toggle('open', open);
+  drawerBackdrop.classList.toggle('open', open);
+}
+document.getElementById('btnPlayersToggle').addEventListener('click', () => setPlayersDrawer(true));
+document.getElementById('btnPlayersClose').addEventListener('click', () => setPlayersDrawer(false));
+drawerBackdrop.addEventListener('click', () => setPlayersDrawer(false));
+
+// Modal cara bermain
+const helpModal = document.getElementById('helpModal');
+function openHelp() { helpModal.classList.remove('hidden'); }
+function closeHelp() {
+  helpModal.classList.add('hidden');
+  localStorage.setItem('tg_seen_help', '1');
+}
+document.getElementById('btnHelp').addEventListener('click', openHelp);
+document.getElementById('btnHelpLobby').addEventListener('click', openHelp);
+document.getElementById('btnHelpClose').addEventListener('click', closeHelp);
+helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });

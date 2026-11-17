@@ -125,7 +125,8 @@ function serializeRoomState(room) {
     guessed: p.guessed,
     turnGain: room.turnScores.get(p.id) || 0,
     isHost: p.id === room.hostId,
-    isDrawer: p.id === room.currentDrawerId
+    isDrawer: p.id === room.currentDrawerId,
+    connected: p.connected !== false
   }));
 
   // Susun antrean giliran Shuffle Bag untuk visualisasi di UI
@@ -163,6 +164,14 @@ function serializeRoomState(room) {
 }
 
 /**
+ * Kirim event ke 1 pemain (berdasarkan ID pemain tetap, bukan socket.id)
+ */
+function emitToPlayer(room, playerId, event, data) {
+  const p = room.players.get(playerId);
+  if (p && p.socketId) io.to(p.socketId).emit(event, data);
+}
+
+/**
  * Broadcast state terbaru room ke semua anggota room
  */
 function broadcastRoomState(room) {
@@ -171,7 +180,7 @@ function broadcastRoomState(room) {
 
   // Kirim kata asli secara privat ke Drawer saat sedang menggambar
   if (room.state === 'drawing' && room.currentDrawerId && room.currentWord) {
-    io.to(room.currentDrawerId).emit('drawer:secret_word', room.currentWord);
+    emitToPlayer(room, room.currentDrawerId, 'drawer:secret_word', room.currentWord);
   }
 }
 
@@ -288,7 +297,7 @@ function startNextTurn(room) {
   });
 
   // Kirim 3 pilihan kata khusus ke Drawer
-  io.to(drawerId).emit('word:choices', room.wordChoices);
+  emitToPlayer(room, drawerId, 'word:choices', room.wordChoices);
   broadcastRoomState(room);
 
   room.timerInterval = setInterval(() => {
@@ -317,7 +326,7 @@ function beginDrawingPhase(room, chosenWord, isAutoPicked = false) {
 
   const drawer = room.players.get(room.currentDrawerId);
   if (isAutoPicked && drawer) {
-    io.to(room.currentDrawerId).emit('chat:message', {
+    emitToPlayer(room, room.currentDrawerId, 'chat:message', {
       type: 'system-close',
       text: `⏱️ Waktu pilih habis! Sistem memilihkan kata "${room.currentWord}" secara otomatis.`
     });
@@ -393,22 +402,113 @@ function endTurnWithReveal(room, reasonText) {
 }
 
 // ==========================================
+// PENGELOLAAN PEMAIN (ID TETAP + MASA TUNGGU RECONNECT)
+// ==========================================
+const RECONNECT_GRACE_MS = 60 * 1000;
+
+function newPlayerId() {
+  return 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+/**
+ * Hapus pemain secara permanen dari room (keluar manual / masa tunggu habis)
+ */
+function removePlayerFromRoom(room, playerId) {
+  const leavingPlayer = room.players.get(playerId);
+  if (!leavingPlayer) return;
+  if (leavingPlayer.graceTimer) clearTimeout(leavingPlayer.graceTimer);
+  room.players.delete(playerId);
+
+  if (room.players.size === 0) {
+    clearRoomTimer(room);
+    rooms.delete(room.code);
+    broadcastPublicRooms();
+    return;
+  }
+
+  if (room.hostId === playerId) {
+    const nextHost = Array.from(room.players.values()).find(p => p.connected) || room.players.values().next().value;
+    if (nextHost) {
+      room.hostId = nextHost.id;
+      room.hostName = nextHost.name;
+      io.to(room.code).emit('chat:message', {
+        type: 'system-info',
+        text: `👑 ${nextHost.name} sekarang menjadi Host room.`
+      });
+    }
+  }
+
+  const idxInQueue = room.roundTurnOrder.indexOf(playerId);
+  if (idxInQueue !== -1) {
+    if (idxInQueue < room.currentTurnIndex) {
+      room.roundTurnOrder.splice(idxInQueue, 1);
+      room.currentTurnIndex--;
+    } else if (idxInQueue > room.currentTurnIndex) {
+      room.roundTurnOrder.splice(idxInQueue, 1);
+    } else {
+      room.roundTurnOrder.splice(idxInQueue, 1);
+      room.currentTurnIndex--;
+      if (room.state === 'choosing_word' || room.state === 'drawing') {
+        io.to(room.code).emit('chat:message', {
+          type: 'system-close',
+          text: `⚠️ Pelukis (${leavingPlayer.name}) keluar. Beralih ke giliran berikutnya...`
+        });
+        startNextTurn(room);
+        broadcastPublicRooms();
+        return;
+      }
+    }
+  }
+
+  io.to(room.code).emit('chat:message', {
+    type: 'system-info',
+    text: `👋 ${leavingPlayer.name} keluar dari room.`
+  });
+
+  if (room.state === 'drawing') {
+    const remaining = Array.from(room.players.values()).filter(p => p.id !== room.currentDrawerId && p.connected);
+    if (remaining.length === 0 || remaining.every(p => p.guessed)) {
+      endTurnWithReveal(room, 'Giliran selesai!');
+      return;
+    }
+  }
+
+  broadcastRoomState(room);
+  broadcastPublicRooms();
+}
+
+// ==========================================
 // SOCKET.IO EVENT HANDLERS
 // ==========================================
 io.on('connection', (socket) => {
   let currentRoomCode = null;
+  let myId = null;
 
-  // Kirim daftar room publik saat pertama terkoneksi
+  const getRoom = () => (currentRoomCode ? rooms.get(currentRoomCode) : null);
+
   broadcastPublicRooms();
+
+  function attachPlayer(room, player) {
+    player.socketId = socket.id;
+    player.connected = true;
+    if (player.graceTimer) {
+      clearTimeout(player.graceTimer);
+      player.graceTimer = null;
+    }
+    myId = player.id;
+    currentRoomCode = room.code;
+    socket.join(room.code);
+  }
 
   // Buat Room Baru
   socket.on('room:create', ({ playerName, avatarColor, settings }, callback) => {
     const cleanName = (playerName || 'Pemain').trim().slice(0, 18) || 'Pemain';
     const code = generateRoomCode();
+    const playerId = newPlayerId();
 
     const room = {
       code,
-      hostId: socket.id,
+      hostId: playerId,
       hostName: cleanName,
       state: 'lobby',
       settings: {
@@ -418,7 +518,7 @@ io.on('connection', (socket) => {
         isPublic: settings?.isPublic !== false
       },
       currentRound: 1,
-      roundTurnOrder: [],
+      roundTurnOrder: [playerId],
       currentTurnIndex: -1,
       currentDrawerId: null,
       lastDrawerId: null,
@@ -434,20 +534,21 @@ io.on('connection', (socket) => {
       players: new Map()
     };
 
-    room.players.set(socket.id, {
-      id: socket.id,
+    const player = {
+      id: playerId,
+      socketId: socket.id,
+      connected: true,
+      graceTimer: null,
       name: cleanName,
       color: avatarColor || '#6366f1',
       score: 0,
       guessed: false
-    });
-
-    room.roundTurnOrder = [socket.id];
+    };
+    room.players.set(playerId, player);
     rooms.set(code, room);
-    currentRoomCode = code;
-    socket.join(code);
+    attachPlayer(room, player);
 
-    if (callback) callback({ ok: true, code });
+    if (callback) callback({ ok: true, code, playerId });
     broadcastRoomState(room);
     broadcastPublicRooms();
   });
@@ -465,35 +566,35 @@ io.on('connection', (socket) => {
     }
 
     const cleanName = (playerName || 'Pemain').trim().slice(0, 18) || 'Pemain';
-    room.players.set(socket.id, {
-      id: socket.id,
+    const playerId = newPlayerId();
+    const player = {
+      id: playerId,
+      socketId: socket.id,
+      connected: true,
+      graceTimer: null,
       name: cleanName,
       color: avatarColor || '#10b981',
       score: 0,
       guessed: false
-    });
+    };
+    room.players.set(playerId, player);
 
-    // Masukkan pemain baru ke antrean giliran ronde berjalan agar tetap kebagian giliran
     if (room.state === 'lobby') {
-      room.roundTurnOrder.push(socket.id);
+      room.roundTurnOrder.push(playerId);
     } else {
-      // Sisipkan secara acak di sisa antrean yang belum menggambar
       const remainingStart = room.currentTurnIndex + 1;
       const insertPos = remainingStart + Math.floor(Math.random() * (room.roundTurnOrder.length - remainingStart + 1));
-      room.roundTurnOrder.splice(insertPos, 0, socket.id);
+      room.roundTurnOrder.splice(insertPos, 0, playerId);
     }
 
-    currentRoomCode = code;
-    socket.join(code);
-
-    if (callback) callback({ ok: true, code });
+    attachPlayer(room, player);
+    if (callback) callback({ ok: true, code, playerId });
 
     io.to(code).emit('chat:message', {
       type: 'system-info',
       text: `👋 ${cleanName} bergabung ke dalam room!`
     });
 
-    // Jika sedang fase menggambar, kirim seluruh riwayat goresan kanvas ke pemain yang baru masuk
     if (room.state === 'drawing' && room.strokeHistory.length > 0) {
       socket.emit('canvas:history', room.strokeHistory);
     }
@@ -502,10 +603,49 @@ io.on('connection', (socket) => {
     broadcastPublicRooms();
   });
 
+  // Masuk kembali ke room setelah refresh / koneksi putus
+  socket.on('room:rejoin', ({ roomCode, playerId }, callback) => {
+    const code = (roomCode || '').trim().toUpperCase();
+    const room = rooms.get(code);
+    const player = room && room.players.get(playerId);
+    if (!room || !player) {
+      return callback && callback({ ok: false, error: 'Sesi sudah berakhir.' });
+    }
+
+    attachPlayer(room, player);
+    if (callback) callback({ ok: true, code, playerId });
+
+    io.to(code).emit('chat:message', {
+      type: 'system-info',
+      text: `🔌 ${player.name} tersambung kembali.`
+    });
+
+    if (room.state === 'drawing') {
+      socket.emit('canvas:history', room.strokeHistory);
+    }
+    if (room.state === 'choosing_word' && room.currentDrawerId === playerId) {
+      socket.emit('word:choices', room.wordChoices);
+    }
+
+    broadcastRoomState(room);
+    broadcastPublicRooms();
+  });
+
+  // Keluar dari room secara manual
+  socket.on('room:leave', () => {
+    const room = getRoom();
+    if (!room || !myId) return;
+    const pid = myId;
+    socket.leave(room.code);
+    currentRoomCode = null;
+    myId = null;
+    removePlayerFromRoom(room, pid);
+  });
+
   // Update Pengaturan Room oleh Host di Lobby
   socket.on('room:update_settings', (newSettings) => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.hostId !== socket.id || room.state !== 'lobby') return;
+    const room = getRoom();
+    if (!room || room.hostId !== myId || room.state !== 'lobby') return;
 
     room.settings = {
       maxPlayers: Math.min(Math.max(Number(newSettings?.maxPlayers) || 10, 2), 16),
@@ -519,14 +659,13 @@ io.on('connection', (socket) => {
 
   // Mulai Permainan (Oleh Host)
   socket.on('game:start', (_, callback) => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.hostId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.hostId !== myId) return;
 
     if (room.players.size < 2) {
       return callback && callback({ ok: false, error: 'Minimal butuh 2 pemain di room untuk memulai permainan!' });
     }
 
-    // Reset skor & mulai Ronde 1 dengan mengacak antrean (Shuffle Bag)
     for (const [, p] of room.players) {
       p.score = 0;
       p.guessed = false;
@@ -549,8 +688,8 @@ io.on('connection', (socket) => {
 
   // Main Lagi dari Podium Akhir
   socket.on('game:restart', () => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.hostId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.hostId !== myId) return;
 
     clearRoomTimer(room);
     for (const [, p] of room.players) {
@@ -569,8 +708,8 @@ io.on('connection', (socket) => {
 
   // Drawer Memilih 1 dari 3 Kata
   socket.on('word:select', (chosenWord) => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.state !== 'choosing_word' || room.currentDrawerId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.state !== 'choosing_word' || room.currentDrawerId !== myId) return;
 
     const validChoice = room.wordChoices.find(c => c.word === chosenWord);
     const wordToUse = validChoice ? validChoice.word : room.wordChoices[0].word;
@@ -579,8 +718,8 @@ io.on('connection', (socket) => {
 
   // Sinkronisasi Goresan Kuas Real-time
   socket.on('canvas:stroke', (strokeData) => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.state !== 'drawing' || room.currentDrawerId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.state !== 'drawing' || room.currentDrawerId !== myId) return;
 
     room.strokeHistory.push({ type: 'stroke', ...strokeData });
     socket.to(room.code).emit('canvas:stroke', strokeData);
@@ -588,17 +727,17 @@ io.on('connection', (socket) => {
 
   // Sinkronisasi Flood Fill (Bucket)
   socket.on('canvas:fill', (fillData) => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.state !== 'drawing' || room.currentDrawerId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.state !== 'drawing' || room.currentDrawerId !== myId) return;
 
     room.strokeHistory.push({ type: 'fill', ...fillData });
     socket.to(room.code).emit('canvas:fill', fillData);
   });
 
-  // Undo Goresan Terakhir (Hapus 1 group strokeId terakhir)
+  // Undo Goresan Terakhir
   socket.on('canvas:undo', () => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.state !== 'drawing' || room.currentDrawerId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.state !== 'drawing' || room.currentDrawerId !== myId) return;
     if (room.strokeHistory.length === 0) return;
 
     const lastItem = room.strokeHistory[room.strokeHistory.length - 1];
@@ -619,8 +758,8 @@ io.on('connection', (socket) => {
 
   // Bersihkan Kanvas
   socket.on('canvas:clear', () => {
-    const room = rooms.get(currentRoomCode);
-    if (!room || room.state !== 'drawing' || room.currentDrawerId !== socket.id) return;
+    const room = getRoom();
+    if (!room || room.state !== 'drawing' || room.currentDrawerId !== myId) return;
 
     room.strokeHistory = [];
     io.to(room.code).emit('canvas:clear');
@@ -628,21 +767,19 @@ io.on('connection', (socket) => {
 
   // Kirim Tebakan / Chat
   socket.on('chat:send', (rawMessage) => {
-    const room = rooms.get(currentRoomCode);
+    const room = getRoom();
     if (!room) return;
-    const player = room.players.get(socket.id);
+    const player = room.players.get(myId);
     if (!player) return;
 
     const text = String(rawMessage || '').trim().slice(0, 80);
     if (!text) return;
 
-    // Jika sedang dalam fase menggambar, periksa apakah ini tebakan kata
     if (room.state === 'drawing' && room.currentWord) {
       const cleanGuess = text.toUpperCase().replace(/\s+/g, ' ');
       const targetWord = room.currentWord.toUpperCase();
 
-      // Cegah Drawer membocorkan jawaban di chat
-      if (socket.id === room.currentDrawerId) {
+      if (myId === room.currentDrawerId) {
         socket.emit('chat:message', {
           type: 'system-close',
           text: '🤫 Kamu sedang menggambar, tidak boleh mengirim chat tebakan!'
@@ -650,7 +787,6 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Cegah pemain yang sudah menebak benar membocorkan jawaban
       if (player.guessed) {
         socket.emit('chat:message', {
           type: 'system-info',
@@ -659,12 +795,10 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // 1. CEK TEBAKAN BENAR PERSIS
       if (cleanGuess === targetWord) {
         player.guessed = true;
         room.correctGuessCount++;
 
-        // Hitung Poin Guesser: Base 100 + Kecepatan Waktu (s.d 300) + Bonus Urutan
         const speedBonus = Math.round((room.timeLeft / room.settings.drawTime) * 300);
         let orderBonus = 0;
         if (room.correctGuessCount === 1) orderBonus = 100;
@@ -675,12 +809,10 @@ io.on('connection', (socket) => {
         player.score += guesserPoints;
         room.turnScores.set(player.id, (room.turnScores.get(player.id) || 0) + guesserPoints);
 
-        // Tambah Poin untuk Drawer (+60 poin per penebak benar)
         const drawer = room.players.get(room.currentDrawerId);
         if (drawer) {
           let drawerGain = 60;
           const totalGuessers = room.players.size - 1;
-          // Bonus Sapu Bersih jika semua penebak berhasil
           if (room.correctGuessCount === totalGuessers && totalGuessers > 1) {
             drawerGain += 100;
           }
@@ -696,9 +828,8 @@ io.on('connection', (socket) => {
 
         broadcastRoomState(room);
 
-        // Cek apakah seluruh penebak di room sudah berhasil menebak
         const allGuessersDone = Array.from(room.players.values())
-          .filter(p => p.id !== room.currentDrawerId)
+          .filter(p => p.id !== room.currentDrawerId && p.connected)
           .every(p => p.guessed);
 
         if (allGuessersDone) {
@@ -707,7 +838,6 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // 2. CEK TEBAKAN HAMPIR BENAR (Levenshtein Distance <= 2)
       const dist = levenshteinDistance(cleanGuess, targetWord);
       if (targetWord.length >= 4 && dist > 0 && dist <= 2) {
         socket.emit('chat:message', {
@@ -719,7 +849,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // 3. Tampilkan sebagai pesan tebakan biasa di publik
     io.to(room.code).emit('chat:message', {
       type: 'normal',
       sender: player.name,
@@ -728,76 +857,33 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Penanganan Pemain Keluar / Disconnect
+  // Koneksi putus: tahan pemain selama masa tunggu agar bisa rejoin
   socket.on('disconnect', () => {
-    if (!currentRoomCode) return;
-    const room = rooms.get(currentRoomCode);
-    if (!room) return;
+    const room = getRoom();
+    if (!room || !myId) return;
+    const player = room.players.get(myId);
+    if (!player || player.socketId !== socket.id) return;
 
-    const leavingPlayer = room.players.get(socket.id);
-    room.players.delete(socket.id);
+    player.connected = false;
+    const pid = myId;
+    player.graceTimer = setTimeout(() => {
+      const r = rooms.get(room.code);
+      if (r) removePlayerFromRoom(r, pid);
+    }, RECONNECT_GRACE_MS);
 
-    // Jika room kosong, bersihkan timer dan hapus room dari memori
-    if (room.players.size === 0) {
-      clearRoomTimer(room);
-      rooms.delete(currentRoomCode);
-      broadcastPublicRooms();
-      return;
-    }
+    io.to(room.code).emit('chat:message', {
+      type: 'system-info',
+      text: `📴 ${player.name} terputus. Menunggu tersambung kembali (60 dtk)...`
+    });
 
-    // Jika Host keluar, pindahkan jabatan Host ke pemain paling awal berikutnya
-    if (room.hostId === socket.id) {
-      const nextHost = room.players.values().next().value;
-      if (nextHost) {
-        room.hostId = nextHost.id;
-        room.hostName = nextHost.name;
-        io.to(room.code).emit('chat:message', {
-          type: 'system-info',
-          text: `👑 ${nextHost.name} sekarang menjadi Host room.`
-        });
-      }
-    }
-
-    // Sesuaikan antrean Shuffle Bag jika pemain keluar di tengah permainan
-    const idxInQueue = room.roundTurnOrder.indexOf(socket.id);
-    if (idxInQueue !== -1) {
-      if (idxInQueue < room.currentTurnIndex) {
-        room.roundTurnOrder.splice(idxInQueue, 1);
-        room.currentTurnIndex--;
-      } else if (idxInQueue > room.currentTurnIndex) {
-        room.roundTurnOrder.splice(idxInQueue, 1);
-      } else {
-        // Yang keluar adalah Drawer yang sedang aktif menggambar!
-        room.roundTurnOrder.splice(idxInQueue, 1);
-        room.currentTurnIndex--;
-        io.to(room.code).emit('chat:message', {
-          type: 'system-close',
-          text: `⚠️ Pelukis (${leavingPlayer?.name || 'Pemain'}) terputus. Beralih ke giliran berikutnya...`
-        });
-        startNextTurn(room);
-        broadcastPublicRooms();
-        return;
-      }
-    }
-
-    if (leavingPlayer) {
-      io.to(room.code).emit('chat:message', {
-        type: 'system-info',
-        text: `👋 ${leavingPlayer.name} keluar dari room.`
-      });
-    }
-
-    // Jika di fase menggambar sisa penebak semuanya sudah menebak benar
     if (room.state === 'drawing') {
-      const remainingGuessers = Array.from(room.players.values()).filter(p => p.id !== room.currentDrawerId);
-      if (remainingGuessers.length === 0 || remainingGuessers.every(p => p.guessed)) {
+      const remaining = Array.from(room.players.values()).filter(p => p.id !== room.currentDrawerId && p.connected);
+      if (remaining.length > 0 && remaining.every(p => p.guessed)) {
         endTurnWithReveal(room, 'Giliran selesai!');
         return;
       }
     }
-
     broadcastRoomState(room);
-    broadcastPublicRooms();
   });
 });
 
